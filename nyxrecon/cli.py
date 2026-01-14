@@ -1,77 +1,120 @@
 #!/usr/bin/env python3
 import os
 import subprocess
+import argparse
+import sys
+import shutil
 
-BANNER = """
-==============================================
- 🚀 NYXRecon – Automated Recon Engine
- Author: Sumit (NYX)
-==============================================
-"""
+VERSION = "1.0.0"
 
-def recon_module():
-    domain = input("\nEnter Target Domain (example: example.com) >> ").strip()
+def banner():
+    print(f"NYXRecon v{VERSION}")
+    print("Automated Recon Engine")
+    print("by NyxC0d3r\n")
 
-    if not domain:
-        print("❌ Domain cannot be empty.")
-        return
+def check_tool(tool):
+    if not shutil.which(tool):
+        print(f"❌ Required tool not found: {tool}")
+        return False
+    return True
 
-    output_dir = os.path.join("nyxrecon", "recon", domain)
+def run_recon(domain, output_base):
+    # Check required tools first
+    required_tools = ["waybackurls", "gau"]
+    for tool in required_tools:
+        if not check_tool(tool):
+            print("\n[!] Install missing tools and try again.")
+            sys.exit(1)
+
+    output_dir = os.path.join(output_base, domain)
     os.makedirs(output_dir, exist_ok=True)
 
-    print("\n🔍 Running waybackurls...")
-    try:
-        with open(f"{output_dir}/waybackurls.txt", "w") as wb:
-            subprocess.run(["waybackurls", domain], stdout=wb)
-    except FileNotFoundError:
-        print("❌ waybackurls not installed")
+    print(f"[+] Target : {domain}")
+    print(f"[+] Output : {output_dir}\n")
 
-    print("🔍 Running gau...")
-    try:
-        with open(f"{output_dir}/gau.txt", "w") as g:
-            subprocess.run(["gau", domain], stdout=g)
-    except FileNotFoundError:
-        print("❌ gau not installed")
+    # waybackurls
+    print("[*] Running waybackurls...")
+    with open(f"{output_dir}/waybackurls.txt", "w") as wb:
+        subprocess.run(
+            ["waybackurls", domain],
+            stdout=wb,
+            stderr=subprocess.DEVNULL
+        )
 
-    print("🔍 Filtering parameterized URLs...")
+    # gau
+    print("[*] Running gau...")
+    with open(f"{output_dir}/gau.txt", "w") as g:
+        subprocess.run(
+            ["gau", domain],
+            stdout=g,
+            stderr=subprocess.DEVNULL
+        )
+
+    # Filter parameterized URLs
+    print("[*] Filtering parameterized URLs...")
     try:
-        with open(f"{output_dir}/gau.txt") as f:
+        with open(f"{output_dir}/gau.txt", "r") as f:
             urls = set(f.readlines())
 
         params = [u for u in urls if "=" in u]
+
         if params:
             with open(f"{output_dir}/urls_parameters.txt", "w") as p:
                 p.writelines(params)
-            print(f"✔ Saved {len(params)} parameterized URLs")
+            print(f"[+] Saved {len(params)} parameterized URLs")
         else:
-            print("→ No parameters found")
+            print("[!] No parameterized URLs found")
 
     except Exception as e:
-        print(f"[!] Error: {e}")
+        print(f"[!] Error processing URLs: {e}")
 
-    print(f"\n📂 Output saved in: {output_dir}\n")
+    print("\n[✓] Recon completed successfully")
 
 def main():
-    while True:
-        print(BANNER)
-        print("[1] Recon Module")
-        print("[2] Brute-force (Labs only – Coming soon)")
-        print("[3] About")
-        print("[0] Exit")
+    parser = argparse.ArgumentParser(
+        description="NYXRecon – Automated Recon Engine"
+    )
 
-        choice = input("Choose option >> ").strip()
+    parser.add_argument(
+        "-d", "--domain",
+        help="Target domain (example.com)"
+    )
 
-        if choice == "1":
-            recon_module()
-        elif choice == "2":
-            print("\n⚠️ Labs only. Feature coming soon.\n")
-        elif choice == "3":
-            print("\nNYXRecon – Educational recon automation tool\n")
-        elif choice == "0":
-            print("\n👋 Exiting...\n")
-            break
-        else:
-            print("\n❌ Invalid choice\n")
+    parser.add_argument(
+        "--recon",
+        action="store_true",
+        help="Run full recon (wayback + gau + param filter)"
+    )
+
+    parser.add_argument(
+        "-o", "--output",
+        default="nyxrecon/recon",
+        help="Output directory (default: nyxrecon/recon)"
+    )
+
+    parser.add_argument(
+        "-v", "--version",
+        action="store_true",
+        help="Show version and exit"
+    )
+
+    args = parser.parse_args()
+    banner()
+
+    if args.version:
+        sys.exit(0)
+
+    if not args.domain:
+        print("❌ Error: Target domain is required")
+        print("👉 Example: python3 cli.py --recon -d example.com")
+        sys.exit(1)
+
+    if not args.recon:
+        print("❌ Error: No action specified")
+        print("👉 Use --recon to start recon")
+        sys.exit(1)
+
+    run_recon(args.domain, args.output)
 
 if __name__ == "__main__":
     main()
